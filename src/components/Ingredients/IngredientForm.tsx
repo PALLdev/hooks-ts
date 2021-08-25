@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import Ingredient from "../../models/ingredient";
 
 import Card from "../UI/Card";
+import LoadingIndicator from "../UI/LoadingIndicator";
 import "./IngredientForm.css";
 
 type IngredientObj = {
@@ -11,6 +12,7 @@ type IngredientObj = {
 
 const IngredientForm: React.FC<{
   onAddIngredient: (ingred: Ingredient) => void;
+  isLoading: boolean;
 }> = React.memo((props) => {
   const [data, setData] = useState<IngredientObj>({
     title: "",
@@ -57,6 +59,7 @@ const IngredientForm: React.FC<{
           </div>
           <div className="ingredient-form__actions">
             <button type="submit">Agregar Ingrediente</button>
+            {props.isLoading === true && <LoadingIndicator />}
           </div>
         </form>
       </Card>
