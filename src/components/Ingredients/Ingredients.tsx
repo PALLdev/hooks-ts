@@ -48,7 +48,7 @@ const httpReducer = (currentHttpState: HttpObj, action: HttpActionType) => {
     case "ERROR":
       return { loading: false, error: action.errorMessage };
     case "CLEAR":
-      return { loading: false, error: null };
+      return { ...currentHttpState, error: null };
     default:
       throw new Error("No se ejecuta");
   }
