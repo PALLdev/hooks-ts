@@ -14,6 +14,7 @@ const IngredientForm: React.FC<{
   onAddIngredient: (ingred: Ingredient) => void;
   isLoading: boolean;
 }> = React.memo((props) => {
+  console.log("RENDERING ING FORM");
   const [data, setData] = useState<IngredientObj>({
     title: "",
     amount: "",

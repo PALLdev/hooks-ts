@@ -1,4 +1,4 @@
-import React, { useCallback, useReducer } from "react";
+import React, { useCallback, useReducer, useMemo } from "react";
 import Ingredient from "../../models/ingredient";
 import ErrorModal from "../UI/ErrorModal";
 
@@ -61,36 +61,39 @@ const Ingredients: React.FC = () => {
     error: null,
   });
 
-  const addIngredient = async (ingredient: Ingredient): Promise<void> => {
-    dispatchHttp({ type: "SEND" });
-    const response = await fetch(
-      "https://hooks-ts-default-rtdb.firebaseio.com/ingredientes.json",
-      {
-        method: "POST",
-        body: JSON.stringify({
+  const addIngredient = useCallback(
+    async (ingredient: Ingredient): Promise<void> => {
+      dispatchHttp({ type: "SEND" });
+      const response = await fetch(
+        "https://hooks-ts-default-rtdb.firebaseio.com/ingredientes.json",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            title: ingredient.title,
+            amount: ingredient.amount,
+            createdAt: ingredient.id,
+          }),
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      dispatchHttp({ type: "RESPONSE" });
+      const responseData = await response.json();
+
+      dispatch({
+        type: "ADD",
+        ingredient: {
+          id: responseData.name,
           title: ingredient.title,
           amount: ingredient.amount,
-          createdAt: ingredient.id,
-        }),
-        headers: {
-          "Content-Type": "application/json",
         },
-      }
-    );
-    dispatchHttp({ type: "RESPONSE" });
-    const responseData = await response.json();
+      });
+    },
+    []
+  );
 
-    dispatch({
-      type: "ADD",
-      ingredient: {
-        id: responseData.name,
-        title: ingredient.title,
-        amount: ingredient.amount,
-      },
-    });
-  };
-
-  const removeItem = (ingredientId: string): void => {
+  const removeItem = useCallback((ingredientId: string): void => {
     dispatchHttp({ type: "SEND" });
     fetch(
       `https://hooks-ts-default-rtdb.firebaseio.com/ingredientes/${ingredientId}.json`,
@@ -105,13 +108,17 @@ const Ingredients: React.FC = () => {
       .catch((err: Error) => {
         dispatchHttp({ type: "ERROR", errorMessage: err.message });
       });
-  };
+  }, []);
 
   const filterIngredients = useCallback((filter: Ingredient[]): void => {
     dispatch({ type: "SET", ingredients: filter });
   }, []);
 
-  const clearError = () => dispatchHttp({ type: "CLEAR" });
+  const clearError = useCallback(() => dispatchHttp({ type: "CLEAR" }), []);
+
+  const ingredientList = useMemo(() => {
+    return <IngredientList items={userIngredients} onRemoveItem={removeItem} />;
+  }, [userIngredients, removeItem]); // remove item nunca deberia cambiar ya que esta en un useCallback
 
   return (
     <div className="App">
@@ -126,7 +133,7 @@ const Ingredients: React.FC = () => {
 
       <section>
         <Search onFilterIngredients={filterIngredients} />
-        <IngredientList items={userIngredients} onRemoveItem={removeItem} />
+        {ingredientList}
       </section>
     </div>
   );
