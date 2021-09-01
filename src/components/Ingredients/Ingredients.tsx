@@ -1,28 +1,18 @@
 import React, { useCallback, useReducer, useMemo } from "react";
 import Ingredient from "../../models/ingredient";
 import ErrorModal from "../UI/ErrorModal";
+import useHttp from "../../hooks/http";
 
 import IngredientForm from "./IngredientForm";
 import IngredientList from "./IngredientList";
 import Search from "./Search";
+import { useEffect } from "react";
 
 type IngredientActionType =
   | { type: "SET"; ingredients: Ingredient[] }
   | { type: "ADD"; ingredient: Ingredient }
-  | { type: "DELETE"; ingredientId: string };
+  | { type: "DELETE"; ingredientId: string | undefined | Ingredient };
 
-type HttpActionType =
-  | { type: "SEND" }
-  | { type: "RESPONSE" }
-  | { type: "ERROR"; errorMessage: string | null }
-  | { type: "CLEAR" };
-
-type HttpObj = {
-  loading: boolean;
-  error: string | null;
-};
-
-// const nameFunc = (state, action) => {return state} always returns a new state
 const ingredientsReducer = (
   currentIngredients: Ingredient[],
   action: IngredientActionType
@@ -39,82 +29,64 @@ const ingredientsReducer = (
   }
 };
 
-const httpReducer = (currentHttpState: HttpObj, action: HttpActionType) => {
-  switch (action.type) {
-    case "SEND":
-      return { loading: true, error: null };
-    case "RESPONSE":
-      return { ...currentHttpState, loading: false };
-    case "ERROR":
-      return { loading: false, error: action.errorMessage };
-    case "CLEAR":
-      return { ...currentHttpState, error: null };
-    default:
-      throw new Error("No se ejecuta");
-  }
-};
-
 const Ingredients: React.FC = () => {
   const [userIngredients, dispatch] = useReducer(ingredientsReducer, []);
-  const [httpState, dispatchHttp] = useReducer(httpReducer, {
-    loading: false,
-    error: null,
-  });
+
+  const {
+    isLoading,
+    data,
+    error,
+    sendRequest,
+    requestExtra,
+    requestIdentifier,
+    clear,
+  } = useHttp(); // custom hook that sets up the logic for making a request
+
+  useEffect(() => {
+    if (!isLoading && !error && requestIdentifier === "REMOVE_INGREDIENT") {
+      dispatch({ type: "DELETE", ingredientId: requestExtra });
+    } else if (!isLoading && !error && requestIdentifier === "ADD_INGREDIENT") {
+      const objIngredient = Object(requestExtra);
+      dispatch({
+        type: "ADD",
+        ingredient: { ...objIngredient, id: data.name },
+      });
+    }
+  }, [data, requestExtra, requestIdentifier, isLoading, error]);
 
   const addIngredient = useCallback(
     async (ingredient: Ingredient): Promise<void> => {
-      dispatchHttp({ type: "SEND" });
-      const response = await fetch(
+      sendRequest(
         "https://hooks-ts-default-rtdb.firebaseio.com/ingredientes.json",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            title: ingredient.title,
-            amount: ingredient.amount,
-            createdAt: ingredient.id,
-          }),
-          headers: {
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      dispatchHttp({ type: "RESPONSE" });
-      const responseData = await response.json();
-
-      dispatch({
-        type: "ADD",
-        ingredient: {
-          id: responseData.name,
+        "POST",
+        JSON.stringify({
           title: ingredient.title,
           amount: ingredient.amount,
-        },
-      });
+          createdAt: ingredient.id,
+        }),
+        ingredient,
+        "ADD_INGREDIENT"
+      );
     },
-    []
+    [sendRequest]
   );
 
-  const removeItem = useCallback((ingredientId: string): void => {
-    dispatchHttp({ type: "SEND" });
-    fetch(
-      `https://hooks-ts-default-rtdb.firebaseio.com/ingredientes/${ingredientId}.json`,
-      {
-        method: "DELETE",
-      }
-    )
-      .then((res) => {
-        dispatchHttp({ type: "RESPONSE" });
-        dispatch({ type: "DELETE", ingredientId: ingredientId });
-      })
-      .catch((err: Error) => {
-        dispatchHttp({ type: "ERROR", errorMessage: err.message });
-      });
-  }, []);
+  const removeItem = useCallback(
+    (ingredientId: string): void => {
+      sendRequest(
+        `https://hooks-ts-default-rtdb.firebaseio.com/ingredientes/${ingredientId}.json`,
+        "DELETE",
+        undefined,
+        ingredientId,
+        "REMOVE_INGREDIENT"
+      );
+    },
+    [sendRequest]
+  );
 
   const filterIngredients = useCallback((filter: Ingredient[]): void => {
     dispatch({ type: "SET", ingredients: filter });
   }, []);
-
-  const clearError = useCallback(() => dispatchHttp({ type: "CLEAR" }), []);
 
   const ingredientList = useMemo(() => {
     return <IngredientList items={userIngredients} onRemoveItem={removeItem} />;
@@ -122,14 +94,9 @@ const Ingredients: React.FC = () => {
 
   return (
     <div className="App">
-      {httpState.error && (
-        <ErrorModal onClose={clearError}>{httpState.error}</ErrorModal>
-      )}
+      {error && <ErrorModal onClose={clear}>{error}</ErrorModal>}
 
-      <IngredientForm
-        onAddIngredient={addIngredient}
-        isLoading={httpState.loading}
-      />
+      <IngredientForm onAddIngredient={addIngredient} isLoading={isLoading} />
 
       <section>
         <Search onFilterIngredients={filterIngredients} />

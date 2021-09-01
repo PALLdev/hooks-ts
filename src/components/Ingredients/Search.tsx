@@ -1,7 +1,9 @@
 import React, { useEffect, useState, useRef } from "react";
+import useHttp from "../../hooks/http";
 import Ingredient from "../../models/ingredient";
 
 import Card from "../UI/Card";
+import ErrorModal from "../UI/ErrorModal";
 import "./Search.css";
 
 const Search: React.FC<{
@@ -10,6 +12,7 @@ const Search: React.FC<{
   const [enteredFilter, setEnteredFilter] = useState("");
   const filterInputRef = useRef<HTMLInputElement>(null);
   const { onFilterIngredients } = props;
+  const { data, sendRequest, isLoading, error, clear } = useHttp();
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -19,38 +22,40 @@ const Search: React.FC<{
           enteredFilter.length === 0
             ? ""
             : `?orderBy="title"&equalTo="${enteredFilter}"`;
-        fetch(
+        sendRequest(
           "https://hooks-ts-default-rtdb.firebaseio.com/ingredientes.json" +
-            query
-        )
-          .then((res) => res.json())
-          .then((resData) => {
-            const loadedIngredients: Ingredient[] = [];
-
-            for (const key in resData) {
-              loadedIngredients.push({
-                id: key,
-                title: resData[key].title,
-                amount: resData[key].amount,
-              });
-            }
-
-            onFilterIngredients(loadedIngredients);
-          })
-          .catch((e) => console.log(e));
+            query,
+          "GET"
+        );
       }
       // clean-up function, runs before this effect is recalled
       return () => {
         clearTimeout(timer);
       };
-    }, 1500);
-  }, [enteredFilter, onFilterIngredients, filterInputRef]);
+    }, 500);
+  }, [enteredFilter, filterInputRef, sendRequest]);
+
+  useEffect(() => {
+    if (!isLoading && !error && data) {
+      const loadedIngredients: Ingredient[] = [];
+      for (const key in data) {
+        loadedIngredients.push({
+          id: key,
+          title: data[key].title,
+          amount: data[key].amount,
+        });
+      }
+      onFilterIngredients(loadedIngredients);
+    }
+  }, [data, isLoading, error, onFilterIngredients]);
 
   return (
     <section className="search">
+      {error && <ErrorModal onClose={clear}>{error}</ErrorModal>}
       <Card>
         <div className="search-input">
           <label htmlFor="texto">Filtrar por titulo</label>
+          {isLoading && <span>Cargando ...</span>}
           <input
             ref={filterInputRef}
             id="texto"
